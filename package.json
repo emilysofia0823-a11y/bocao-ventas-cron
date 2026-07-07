@@ -1,0 +1,11 @@
+{
+  "name": "bocao-ventas-cron",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node cron.js"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.3"
+  }
+}
