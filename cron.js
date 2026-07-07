@@ -52,17 +52,26 @@ function fmt(n) {
 
 function calcularResumen(pedidos, startISO, endISO) {
   var delDia = pedidos.filter(function (p) { return p.fecha && p.fecha >= startISO && p.fecha < endISO; });
-  var total = 0, domTotal = 0, domCnt = 0, recCnt = 0;
+  var pagados = delDia.filter(function (p) { return !!p.metodoPago; });
+  var pendientes = delDia.filter(function (p) { return !p.metodoPago; });
+
+  var totalCobrado = 0, domTotal = 0, domCnt = 0, recCnt = 0, totalPendiente = 0;
   var pago = { efectivo: 0, nequi: 0, transferencia: 0 };
-  delDia.forEach(function (p) {
-    total += p.total || 0;
-    if (p.tipo === 'domicilio') { domTotal += p.costoEnvio || 0; domCnt++; }
-    else recCnt++;
+
+  delDia.forEach(function (p) { if (p.tipo === 'domicilio') domCnt++; else recCnt++; });
+
+  pagados.forEach(function (p) {
+    totalCobrado += p.total || 0;
+    if (p.tipo === 'domicilio') domTotal += p.costoEnvio || 0;
     if (p.metodoPago) pago[p.metodoPago] = (pago[p.metodoPago] || 0) + (p.total || 0);
   });
+  pendientes.forEach(function (p) { totalPendiente += p.total || 0; });
+
   return {
-    total: total, pedidos: delDia.length, domTotal: domTotal, domCnt: domCnt, recCnt: recCnt,
-    pago: pago, promedio: delDia.length ? total / delDia.length : 0
+    totalCobrado: totalCobrado, totalPendiente: totalPendiente,
+    pedidos: delDia.length, pagadosCnt: pagados.length, pendientesCnt: pendientes.length,
+    domTotal: domTotal, domCnt: domCnt, recCnt: recCnt,
+    pago: pago, promedio: pagados.length ? totalCobrado / pagados.length : 0
   };
 }
 
@@ -71,15 +80,19 @@ var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'ag
 
 function construirMensaje(resumen, businessDay) {
   var fechaLabel = DIAS[businessDay.getUTCDay()] + ' ' + businessDay.getUTCDate() + ' de ' + MESES[businessDay.getUTCMonth()];
-  var msg = '📊 Resumen Boca\'o — ' + fechaLabel + '\n\n';
-  msg += '💰 Total del día: ' + fmt(resumen.total) + '\n';
-  msg += '🧾 Pedidos: ' + resumen.pedidos + ' (' + resumen.domCnt + ' domicilio / ' + resumen.recCnt + ' recoger)\n';
-  msg += '🛵 Envíos cobrados: ' + fmt(resumen.domTotal) + '\n';
+  var msg = '📊 *Resumen Boca\'o* — ' + fechaLabel + '\n\n';
+  msg += '💰 Total cobrado: ' + fmt(resumen.totalCobrado) + '\n';
+  msg += '🧾 Pedidos tomados: ' + resumen.pedidos + ' (' + resumen.pagadosCnt + ' cobrados, ' + resumen.pendientesCnt + ' pendientes)\n';
+  msg += '🛵 Domicilio: ' + resumen.domCnt + '   🏃 Recoger: ' + resumen.recCnt + '\n';
+  msg += '📦 Envíos cobrados: ' + fmt(resumen.domTotal) + '\n';
   msg += '🎫 Ticket promedio: ' + fmt(resumen.promedio) + '\n\n';
-  msg += 'Desglose de pago:\n';
+  msg += '*Desglose de pago:*\n';
   msg += '💵 Efectivo: ' + fmt(resumen.pago.efectivo) + '\n';
   msg += '📱 Nequi: ' + fmt(resumen.pago.nequi) + '\n';
   msg += '🏦 Transferencia: ' + fmt(resumen.pago.transferencia);
+  if (resumen.pendientesCnt > 0) {
+    msg += '\n\n⚠️ Quedaron ' + resumen.pendientesCnt + ' pedido(s) sin cobrar por ' + fmt(resumen.totalPendiente);
+  }
   return msg;
 }
 
