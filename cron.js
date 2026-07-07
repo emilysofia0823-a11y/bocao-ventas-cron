@@ -1,16 +1,16 @@
-// Envía por WhatsApp (vía CallMeBot) el resumen de ventas del día a la 1am hora Bogotá.
+// Envía por WhatsApp (vía Kapso) el resumen de ventas del día a la 1am hora Bogotá.
 const cron = require('node-cron');
 
 const FIREBASE_PROJECT_ID = 'e703-18361';
 const FIREBASE_API_KEY = 'AIzaSyB7fkzZNNNY5oWt5oSAT-2wSwtJh69TKvs';
 
-// Formato env var ADMIN_WHATSAPPS: "573001234567:111111,573009876543:222222"
+const KAPSO_API_KEY = process.env.KAPSO_API_KEY;
+const KAPSO_PHONE_NUMBER_ID = process.env.KAPSO_PHONE_NUMBER_ID;
+
+// Formato env var ADMIN_PHONES: "573001234567,573009876543" (con código de país, sin +)
 function getDestinatarios() {
-  var raw = process.env.ADMIN_WHATSAPPS || '';
-  return raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean).map(function (par) {
-    var partes = par.split(':');
-    return { phone: partes[0], apikey: partes[1] };
-  });
+  var raw = process.env.ADMIN_PHONES || '';
+  return raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
 }
 
 function parseFirestoreValue(v) {
@@ -83,22 +83,35 @@ function construirMensaje(resumen, businessDay) {
   return msg;
 }
 
-async function enviarWhatsapp(dest, mensaje) {
-  var url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent(dest.phone) +
-    '&text=' + encodeURIComponent(mensaje) + '&apikey=' + encodeURIComponent(dest.apikey);
+async function enviarWhatsapp(phone, mensaje) {
+  var url = 'https://api.kapso.ai/meta/whatsapp/v24.0/' + KAPSO_PHONE_NUMBER_ID + '/messages';
   try {
-    var res = await fetch(url);
-    console.log('Enviado a', dest.phone, '- status', res.status);
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'X-API-Key': KAPSO_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'text',
+        text: { body: mensaje }
+      })
+    });
+    var data = await res.text();
+    console.log('Enviado a', phone, '- status', res.status, data);
   } catch (e) {
-    console.error('Error enviando a', dest.phone, e.message);
+    console.error('Error enviando a', phone, e.message);
   }
 }
 
 async function correrResumenDiario() {
   console.log('Ejecutando resumen diario...', new Date().toISOString());
+  if (!KAPSO_API_KEY || !KAPSO_PHONE_NUMBER_ID) {
+    console.log('Faltan KAPSO_API_KEY o KAPSO_PHONE_NUMBER_ID. Nada que enviar.');
+    return;
+  }
   var destinatarios = getDestinatarios();
   if (destinatarios.length === 0) {
-    console.log('Sin destinatarios configurados (ADMIN_WHATSAPPS vacío). Nada que enviar.');
+    console.log('Sin destinatarios configurados (ADMIN_PHONES vacío). Nada que enviar.');
     return;
   }
   // Bogotá no tiene horario de verano: UTC-5 siempre.
