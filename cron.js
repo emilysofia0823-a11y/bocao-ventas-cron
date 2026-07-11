@@ -63,7 +63,12 @@ function calcularResumen(pedidos, startISO, endISO) {
   pagados.forEach(function (p) {
     totalCobrado += p.total || 0;
     if (p.tipo === 'domicilio') domTotal += p.costoEnvio || 0;
-    if (p.metodoPago) pago[p.metodoPago] = (pago[p.metodoPago] || 0) + (p.total || 0);
+    if (p.metodoPago === 'mixto' && p.pagoMixto) {
+      pago.efectivo += p.pagoMixto.efectivo || 0;
+      pago.transferencia += p.pagoMixto.transferencia || 0;
+    } else if (p.metodoPago) {
+      pago[p.metodoPago] = (pago[p.metodoPago] || 0) + (p.total || 0);
+    }
   });
   pendientes.forEach(function (p) { totalPendiente += p.total || 0; });
 
